@@ -326,12 +326,14 @@ h2 {
 }
 
 .gallery-grid {
-  column-count: 3;
-  column-gap: 1.2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.2rem;
+  align-items: start;
 }
 
 .gallery-grid.is-empty {
-  column-count: 1;
+  display: block;
 }
 
 .work-card {
@@ -341,15 +343,22 @@ h2 {
   border-radius: 18px;
   overflow: hidden;
   box-shadow: var(--shadow);
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  margin: 0 0 1.2rem;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
+  margin: 0;
   transform: translateY(0);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+.work-card--tall {
+  grid-row: span 2;
+}
+
+.work-card--wide {
+  grid-column: span 2;
 }
 
 .work-card::before {
@@ -390,9 +399,18 @@ h2 {
 
 .work-cover {
   width: 100%;
-  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
   display: block;
   background: rgba(12, 51, 88, 0.6);
+}
+
+.work-cover.is-tall {
+  aspect-ratio: 3 / 4;
+}
+
+.work-cover.is-wide {
+  aspect-ratio: 16 / 9;
 }
 
 .work-body {
@@ -1099,6 +1117,44 @@ textarea {
   font-size: 0.8rem;
 }
 
+.upload-progress {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.upload-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(6, 30, 56, 0.58);
+  overflow: hidden;
+}
+
+.upload-progress-bar {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6ccfff, #2f90d7);
+  transition: width 0.2s ease;
+}
+
+.upload-progress-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.upload-progress.is-error .upload-progress-bar {
+  background: linear-gradient(90deg, #ff839d, #d14670);
+}
+
+.upload-progress.is-error .upload-progress-text {
+  color: #ffd3de;
+}
+
 .video-viewer .viewer-content {
   background: rgba(5, 22, 40, 0.86);
 }
@@ -1269,7 +1325,11 @@ textarea {
   }
 
   .gallery-grid {
-    column-count: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .work-card--wide {
+    grid-column: span 1;
   }
 
   .input-grid {
@@ -1303,7 +1363,8 @@ textarea {
   }
 
   .gallery-grid {
-    column-count: 1;
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
   }
 
   .format-switch {

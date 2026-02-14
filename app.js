@@ -15,6 +15,9 @@ const photoDropTitle = document.querySelector("#drop-title");
 const photoDropHint = document.querySelector("#drop-hint");
 const photoPreviewList = document.querySelector("#preview-list");
 const photoResetBtn = document.querySelector("#reset-btn");
+const photoUploadProgress = document.querySelector("#photo-upload-progress");
+const photoUploadProgressBar = document.querySelector("#photo-upload-progress-bar");
+const photoUploadProgressText = document.querySelector("#photo-upload-progress-text");
 
 const photoCountElement = document.querySelector("#photo-count");
 const videoCountElement = document.querySelector("#video-count");
@@ -65,6 +68,9 @@ const videoPasswordWrap = document.querySelector("#video-password-wrap");
 const videoPasswordInput = document.querySelector("#video-password");
 const videoUploadPreview = document.querySelector("#video-upload-preview");
 const videoResetBtn = document.querySelector("#video-reset-btn");
+const videoUploadProgress = document.querySelector("#video-upload-progress");
+const videoUploadProgressBar = document.querySelector("#video-upload-progress-bar");
+const videoUploadProgressText = document.querySelector("#video-upload-progress-text");
 
 const adminAuthForm = document.querySelector("#admin-auth-form");
 const adminApiBaseInput = document.querySelector("#api-base-url");
@@ -240,6 +246,69 @@ async function apiRequest(path, { method = "GET", body, headers = {}, admin = fa
   }
 
   return payload;
+}
+
+function apiUploadRequest(
+  path,
+  { method = "POST", body, headers = {}, admin = false, onUploadProgress } = {},
+) {
+  return new Promise((resolve, reject) => {
+    const requestHeaders = new Headers(headers);
+
+    if (admin && adminApiKey) {
+      requestHeaders.set("x-admin-key", adminApiKey);
+    }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, buildApiUrl(path), true);
+
+    requestHeaders.forEach((value, key) => {
+      xhr.setRequestHeader(key, value);
+    });
+
+    xhr.upload.onprogress = (event) => {
+      if (typeof onUploadProgress === "function") {
+        onUploadProgress(event);
+      }
+    };
+
+    xhr.onerror = () => {
+      const error = new Error("Failed to fetch");
+      error.status = 0;
+      reject(error);
+    };
+
+    xhr.onload = () => {
+      const contentType = xhr.getResponseHeader("content-type") || "";
+      const rawText = xhr.responseText || "";
+
+      let payload = rawText;
+      if (contentType.includes("application/json")) {
+        try {
+          payload = JSON.parse(rawText || "{}");
+        } catch {
+          payload = null;
+        }
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const message =
+          payload?.error ||
+          (typeof payload === "string" && payload.trim()) ||
+          `Request failed with status ${xhr.status}`;
+
+        const error = new Error(message);
+        error.status = xhr.status;
+        error.payload = payload;
+        reject(error);
+        return;
+      }
+
+      resolve(payload);
+    };
+
+    xhr.send(body);
+  });
 }
 
 function toTimestamp(value) {
@@ -459,6 +528,87 @@ function setBusy(button, busy, originalText) {
   }
 }
 
+function getProgressNodes(type) {
+  if (type === "photo") {
+    return {
+      root: photoUploadProgress,
+      bar: photoUploadProgressBar,
+      text: photoUploadProgressText,
+    };
+  }
+
+  if (type === "video") {
+    return {
+      root: videoUploadProgress,
+      bar: videoUploadProgressBar,
+      text: videoUploadProgressText,
+    };
+  }
+
+  return null;
+}
+
+function showUploadProgress(type, title = "Загрузка...") {
+  const nodes = getProgressNodes(type);
+  if (!nodes?.root || !nodes?.bar || !nodes?.text) {
+    return;
+  }
+
+  nodes.root.classList.remove("is-hidden");
+  nodes.root.classList.remove("is-error");
+  nodes.bar.style.width = "0%";
+  nodes.text.textContent = `${title} 0%`;
+}
+
+function updateUploadProgress(type, event, title = "Загрузка...") {
+  const nodes = getProgressNodes(type);
+  if (!nodes?.root || !nodes?.bar || !nodes?.text) {
+    return;
+  }
+
+  if (event?.lengthComputable && event.total > 0) {
+    const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+    nodes.bar.style.width = `${percent}%`;
+    nodes.text.textContent = `${title} ${percent}%`;
+    return;
+  }
+
+  nodes.text.textContent = `${title}...`;
+}
+
+function finishUploadProgress(type, text = "Готово", delayMs = 600) {
+  const nodes = getProgressNodes(type);
+  if (!nodes?.root || !nodes?.bar || !nodes?.text) {
+    return;
+  }
+
+  nodes.bar.style.width = "100%";
+  nodes.text.textContent = text;
+
+  window.setTimeout(() => {
+    nodes.root.classList.add("is-hidden");
+  }, delayMs);
+}
+
+function failUploadProgress(type, text = "Ошибка загрузки") {
+  const nodes = getProgressNodes(type);
+  if (!nodes?.root || !nodes?.bar || !nodes?.text) {
+    return;
+  }
+
+  nodes.root.classList.remove("is-hidden");
+  nodes.root.classList.add("is-error");
+  nodes.text.textContent = text;
+}
+
+function toUserFacingError(prefix, error) {
+  if (!error?.status) {
+    return `${prefix}: ошибка сети (CORS/API). Проверь API URL и CORS_ORIGIN.`;
+  }
+
+  return `${prefix}: ${error.message}`;
+}
+
 function renderStats() {
   const privateVideos = videos.filter((item) => item.visibility === "private").length;
 
@@ -473,6 +623,27 @@ function renderStats() {
   if (privateCountElement) {
     privateCountElement.textContent = String(privateVideos);
   }
+}
+
+function getPhotoCardVariant(work, index) {
+  const seedBase = String(work?.id || "")
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const seed = seedBase + index;
+
+  if (work?.format === "group" && (work?.images?.length || 0) >= 3) {
+    return "tall";
+  }
+
+  if (seed % 7 === 0) {
+    return "wide";
+  }
+
+  if (seed % 3 === 0) {
+    return "tall";
+  }
+
+  return "base";
 }
 
 function renderPhotoGallery() {
@@ -492,7 +663,7 @@ function renderPhotoGallery() {
   photoWorks
     .slice()
     .sort((a, b) => b.createdAt - a.createdAt)
-    .forEach((work) => {
+    .forEach((work, index) => {
       const card = photoCardTemplate.content.firstElementChild.cloneNode(true);
       const cover = card.querySelector(".work-cover");
       const openBtn = card.querySelector(".work-open");
@@ -503,6 +674,13 @@ function renderPhotoGallery() {
       const deleteBtn = card.querySelector(".work-delete");
 
       const coverSrc = work.images[0] || encodeSvg("NO IMAGE", "#1b7bd1", "#0b3f69");
+      const variant = getPhotoCardVariant(work, index);
+
+      card.classList.add(`work-card--${variant}`);
+      if (cover) {
+        cover.classList.toggle("is-tall", variant === "tall");
+        cover.classList.toggle("is-wide", variant === "wide");
+      }
 
       cover.src = coverSrc;
       cover.alt = `Превью ${work.title}`;
@@ -655,6 +833,7 @@ async function onPhotoSubmit(event) {
 
   const submitBtn = photoForm.querySelector('button[type="submit"]');
   setBusy(submitBtn, true, "Загрузка...");
+  showUploadProgress("photo", "Загрузка фото");
 
   try {
     const payload = new FormData();
@@ -665,10 +844,13 @@ async function onPhotoSubmit(event) {
       payload.append("files", file, file.name);
     });
 
-    const response = await apiRequest("/api/photos", {
+    const response = await apiUploadRequest("/api/photos", {
       method: "POST",
       body: payload,
       admin: true,
+      onUploadProgress: (event) => {
+        updateUploadProgress("photo", event, "Загрузка фото");
+      },
     });
 
     const created = normalizePhotoItem(response?.item || {});
@@ -677,12 +859,14 @@ async function onPhotoSubmit(event) {
     renderPhotoGallery();
     renderStats();
     clearPhotoForm();
+    finishUploadProgress("photo", "Фото загружены");
     window.location.hash = "gallery";
   } catch (error) {
     if (error.status === 401) {
       setAdminAuthStatus("Неверный Admin API Key. Обнови ключ и повтори.", "error");
     }
-    alert(`Не удалось загрузить фото: ${error.message}`);
+    failUploadProgress("photo", "Ошибка загрузки фото");
+    alert(toUserFacingError("Не удалось загрузить фото", error));
   } finally {
     setBusy(submitBtn, false, "");
   }
@@ -1104,6 +1288,7 @@ async function onVideoUploadSubmit(event) {
 
   const submitBtn = videoUploadForm.querySelector('button[type="submit"]');
   setBusy(submitBtn, true, "Загрузка...");
+  showUploadProgress("video", "Загрузка видео");
 
   try {
     const payload = new FormData();
@@ -1126,10 +1311,13 @@ async function onVideoUploadSubmit(event) {
       payload.append("sourceLink", yandexLink);
     }
 
-    const response = await apiRequest("/api/videos", {
+    const response = await apiUploadRequest("/api/videos", {
       method: "POST",
       body: payload,
       admin: true,
+      onUploadProgress: (event) => {
+        updateUploadProgress("video", event, "Загрузка видео");
+      },
     });
 
     const created = normalizeVideoItem(response?.item || {});
@@ -1139,12 +1327,14 @@ async function onVideoUploadSubmit(event) {
     renderCategoryAdminList();
     renderStats();
     clearVideoUploadForm();
+    finishUploadProgress("video", "Видео загружено");
     window.location.hash = "video-library";
   } catch (error) {
     if (error.status === 401) {
       setAdminAuthStatus("Неверный Admin API Key. Обнови ключ и повтори.", "error");
     }
-    alert(`Не удалось загрузить видео: ${error.message}`);
+    failUploadProgress("video", "Ошибка загрузки видео");
+    alert(toUserFacingError("Не удалось загрузить видео", error));
   } finally {
     setBusy(submitBtn, false, "");
   }

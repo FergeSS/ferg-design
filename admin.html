@@ -157,6 +157,12 @@
             <button type="submit" class="primary-btn">Добавить в портфолио</button>
             <button type="button" id="reset-btn" class="ghost-btn">Очистить форму</button>
           </div>
+          <div id="photo-upload-progress" class="upload-progress is-hidden" aria-live="polite">
+            <div class="upload-progress-track">
+              <span id="photo-upload-progress-bar" class="upload-progress-bar"></span>
+            </div>
+            <p id="photo-upload-progress-text" class="upload-progress-text">Загрузка фото 0%</p>
+          </div>
         </form>
       </section>
 
@@ -267,6 +273,12 @@
           <div class="form-actions">
             <button type="submit" class="primary-btn">Загрузить видео</button>
             <button type="button" id="video-reset-btn" class="ghost-btn">Очистить форму</button>
+          </div>
+          <div id="video-upload-progress" class="upload-progress is-hidden" aria-live="polite">
+            <div class="upload-progress-track">
+              <span id="video-upload-progress-bar" class="upload-progress-bar"></span>
+            </div>
+            <p id="video-upload-progress-text" class="upload-progress-text">Загрузка видео 0%</p>
           </div>
         </form>
       </section>
