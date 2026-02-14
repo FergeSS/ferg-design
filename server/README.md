@@ -5,6 +5,7 @@ Backend для хранения фото/видео вне браузера:
 - фото/превью/видео-файлы в Yandex Object Storage;
 - приватные видео через пароль + временная signed URL.
 - загрузка на сервере без хранения файлов в RAM (upload -> temp file -> stream в Object Storage).
+- для больших файлов используется multipart upload в S3-compatible storage.
 
 ## 1) Подготовка
 

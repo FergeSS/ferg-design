@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "./config.js";
 
@@ -68,7 +69,15 @@ export async function uploadStream({ key, stream, mimeType, contentLength }) {
     input.ContentLength = contentLength;
   }
 
-  await client.send(new PutObjectCommand(input));
+  const uploader = new Upload({
+    client,
+    params: input,
+    queueSize: 4,
+    partSize: 8 * 1024 * 1024,
+    leavePartsOnError: false,
+  });
+
+  await uploader.done();
 
   return {
     key,
