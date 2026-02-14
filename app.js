@@ -625,27 +625,6 @@ function renderStats() {
   }
 }
 
-function getPhotoCardVariant(work, index) {
-  const seedBase = String(work?.id || "")
-    .split("")
-    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const seed = seedBase + index;
-
-  if (work?.format === "group" && (work?.images?.length || 0) >= 3) {
-    return "tall";
-  }
-
-  if (seed % 7 === 0) {
-    return "wide";
-  }
-
-  if (seed % 3 === 0) {
-    return "tall";
-  }
-
-  return "base";
-}
-
 function renderPhotoGallery() {
   if (!photoGalleryGrid || !photoCardTemplate) {
     return;
@@ -663,7 +642,7 @@ function renderPhotoGallery() {
   photoWorks
     .slice()
     .sort((a, b) => b.createdAt - a.createdAt)
-    .forEach((work, index) => {
+    .forEach((work) => {
       const card = photoCardTemplate.content.firstElementChild.cloneNode(true);
       const cover = card.querySelector(".work-cover");
       const openBtn = card.querySelector(".work-open");
@@ -674,13 +653,6 @@ function renderPhotoGallery() {
       const deleteBtn = card.querySelector(".work-delete");
 
       const coverSrc = work.images[0] || encodeSvg("NO IMAGE", "#1b7bd1", "#0b3f69");
-      const variant = getPhotoCardVariant(work, index);
-
-      card.classList.add(`work-card--${variant}`);
-      if (cover) {
-        cover.classList.toggle("is-tall", variant === "tall");
-        cover.classList.toggle("is-wide", variant === "wide");
-      }
 
       cover.src = coverSrc;
       cover.alt = `Превью ${work.title}`;
