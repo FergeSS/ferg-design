@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="ferg-api-base" content="" />
+    <title>Ferg Design Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=Tektur:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-role="admin">
+    <div class="background-mesh" aria-hidden="true"></div>
+
+    <header class="hero section">
+      <nav class="top-nav">
+        <p class="brand">Ferg Design / Admin</p>
+        <div class="top-nav-links">
+          <a class="ghost-btn" href="/index.html">Публичная страница</a>
+          <a class="ghost-btn" href="#admin-access">Доступ</a>
+          <a class="ghost-btn" href="#photo-upload">Фото</a>
+          <a class="ghost-btn" href="#video-admin">Видео</a>
+        </div>
+      </nav>
+
+      <div class="hero-grid">
+        <div>
+          <p class="kicker">Admin Panel</p>
+          <h1>
+            Управление портфолио
+            <span>фото, видео, категории и приватный доступ</span>
+          </h1>
+          <p class="hero-copy">
+            Загружай фото и видео, создавай категории для видео, выставляй цвет секции
+            и контролируй доступ: публично или приватно по паролю.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-btn" href="#photo-upload">Добавить фото</a>
+            <a class="link-btn" href="#video-admin">Добавить видео</a>
+          </div>
+        </div>
+
+        <aside class="hero-stats">
+          <article>
+            <p id="photo-count">0</p>
+            <span>Фото работ</span>
+          </article>
+          <article>
+            <p id="video-count">0</p>
+            <span>Видео работ</span>
+          </article>
+          <article>
+            <p id="private-count">0</p>
+            <span>Приватных видео</span>
+          </article>
+        </aside>
+      </div>
+    </header>
+
+    <main>
+      <section id="admin-access" class="section">
+        <div class="section-head">
+          <p class="kicker">API Access</p>
+          <h2>Подключение админки</h2>
+        </div>
+
+        <form id="admin-auth-form" class="upload-form">
+          <div class="input-grid">
+            <label>
+              API URL
+              <input
+                id="api-base-url"
+                type="url"
+                inputmode="url"
+                placeholder="Например: https://api.fergdesign.com или http://localhost:8787"
+                required
+              />
+            </label>
+            <label>
+              Admin API Key
+              <input
+                id="admin-api-key"
+                type="password"
+                autocomplete="off"
+                placeholder="Вставь секретный ключ"
+                required
+              />
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-btn">Подключить</button>
+            <button type="button" id="admin-auth-reset" class="ghost-btn">Очистить ключ</button>
+          </div>
+          <p id="admin-auth-status" class="admin-auth-status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section id="gallery" class="section">
+        <div class="section-head">
+          <p class="kicker">Photo Gallery</p>
+          <h2>Текущие фото работы</h2>
+        </div>
+
+        <div id="gallery-grid" class="gallery-grid" aria-live="polite"></div>
+      </section>
+
+      <section id="photo-upload" class="section">
+        <div class="section-head">
+          <p class="kicker">Photo Upload</p>
+          <h2>Добавить новую фото работу</h2>
+        </div>
+
+        <form id="upload-form" class="upload-form">
+          <div class="format-switch" role="radiogroup" aria-label="Формат работы">
+            <label>
+              <input type="radio" name="format" value="single" checked />
+              <span>Одиночное фото</span>
+            </label>
+            <label>
+              <input type="radio" name="format" value="group" />
+              <span>Группа фото</span>
+            </label>
+          </div>
+
+          <div class="input-grid">
+            <label>
+              Название
+              <input id="title" name="title" type="text" placeholder="Например: Neon Portrait" required />
+            </label>
+
+            <label>
+              Описание
+              <textarea
+                id="description"
+                name="description"
+                rows="3"
+                placeholder="Коротко опиши задачу, стилистику, результат"
+                required
+              ></textarea>
+            </label>
+          </div>
+
+          <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Зона загрузки фото">
+            <input id="files" name="files" type="file" accept="image/*" hidden />
+            <p id="drop-title">Перетащи фото сюда или нажми для выбора</p>
+            <small id="drop-hint">Для одиночного формата нужно 1 фото.</small>
+          </div>
+
+          <div id="preview-list" class="preview-list"></div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-btn">Добавить в портфолио</button>
+            <button type="button" id="reset-btn" class="ghost-btn">Очистить форму</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="video-admin" class="section">
+        <div class="section-head">
+          <p class="kicker">Video Categories</p>
+          <h2>Категории видео</h2>
+        </div>
+
+        <div class="admin-video-layout">
+          <form id="video-category-form" class="upload-form">
+            <div class="input-grid">
+              <label>
+                Название категории
+                <input id="video-category-name" type="text" placeholder="Например: Showreel" required />
+              </label>
+              <label>
+                Цвет фона категории
+                <input id="video-category-color" type="color" value="#1b7bd1" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary-btn">Создать категорию</button>
+            </div>
+          </form>
+
+          <div id="video-category-list-admin" class="category-list" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="video-upload" class="section">
+        <div class="section-head">
+          <p class="kicker">Video Upload</p>
+          <h2>Добавить видео в портфолио</h2>
+        </div>
+
+        <form id="video-upload-form" class="upload-form">
+          <div class="input-grid">
+            <label>
+              Название видео
+              <input id="video-title" type="text" placeholder="Например: Campaign Reel" required />
+            </label>
+
+            <label>
+              Категория видео
+              <select id="video-category-select" required></select>
+            </label>
+
+            <label>
+              Описание
+              <textarea
+                id="video-description"
+                rows="3"
+                placeholder="Что за видео и какой результат"
+                required
+              ></textarea>
+            </label>
+
+            <label id="video-file-wrap">
+              Файл видео
+              <input id="video-file" type="file" accept="video/*" required />
+            </label>
+
+            <label id="video-yadisk-link-wrap" class="is-hidden">
+              Ссылка на Яндекс Диск
+              <input
+                id="video-yadisk-link"
+                type="url"
+                placeholder="https://disk.yandex.ru/..."
+              />
+            </label>
+
+            <label>
+              Превью (изображение)
+              <input id="video-preview-file" type="file" accept="image/*" />
+            </label>
+          </div>
+
+          <div class="visibility-switch source-switch" role="radiogroup" aria-label="Источник видео">
+            <label>
+              <input type="radio" name="video-source" value="upload" checked />
+              <span>Файл с компьютера</span>
+            </label>
+            <label>
+              <input type="radio" name="video-source" value="yadisk" />
+              <span>Ссылка на Яндекс Диск</span>
+            </label>
+          </div>
+
+          <div class="visibility-switch" role="radiogroup" aria-label="Публичность видео">
+            <label>
+              <input type="radio" name="video-visibility" value="public" checked />
+              <span>Публичное</span>
+            </label>
+            <label>
+              <input type="radio" name="video-visibility" value="private" />
+              <span>Приватное (по паролю)</span>
+            </label>
+          </div>
+
+          <label id="video-password-wrap" class="password-wrap is-hidden">
+            Пароль для приватного видео
+            <input id="video-password" type="password" placeholder="Введи пароль доступа" />
+          </label>
+
+          <div id="video-upload-preview" class="video-upload-preview"></div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-btn">Загрузить видео</button>
+            <button type="button" id="video-reset-btn" class="ghost-btn">Очистить форму</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="video-library" class="section">
+        <div class="section-head">
+          <p class="kicker">Video Library</p>
+          <h2>Список видео</h2>
+        </div>
+
+        <div id="admin-video-list" class="video-category-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <dialog id="viewer" class="viewer">
+      <button id="viewer-close" class="viewer-close" aria-label="Закрыть">✕</button>
+      <div class="viewer-content">
+        <img id="viewer-image" alt="Полноразмерное изображение" />
+      </div>
+      <div class="viewer-meta">
+        <h3 id="viewer-title"></h3>
+        <p id="viewer-description"></p>
+      </div>
+      <div class="viewer-controls">
+        <button id="viewer-prev" class="ghost-btn" type="button">← Назад</button>
+        <p id="viewer-position"></p>
+        <button id="viewer-next" class="ghost-btn" type="button">Вперед →</button>
+      </div>
+      <div id="viewer-thumbs" class="viewer-thumbs"></div>
+    </dialog>
+
+    <dialog id="video-viewer" class="viewer video-viewer">
+      <button id="video-viewer-close" class="viewer-close" aria-label="Закрыть">✕</button>
+      <div class="viewer-content video-player-shell">
+        <video id="viewer-video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="viewer-meta">
+        <h3 id="viewer-video-title"></h3>
+        <p id="viewer-video-description"></p>
+      </div>
+      <div class="video-viewer-row">
+        <span id="viewer-video-category" class="video-tag"></span>
+        <span id="viewer-video-visibility" class="video-tag"></span>
+      </div>
+    </dialog>
+
+    <template id="work-card-template">
+      <article class="work-card">
+        <button class="work-open" type="button">
+          <img class="work-cover" alt="Превью работы" loading="lazy" />
+        </button>
+        <div class="work-body">
+          <div class="work-row">
+            <span class="work-badge"></span>
+            <button class="work-delete" type="button" aria-label="Удалить работу">Удалить</button>
+          </div>
+          <h3 class="work-title"></h3>
+          <p class="work-description"></p>
+          <div class="work-stack"></div>
+        </div>
+      </article>
+    </template>
+
+    <template id="video-card-template">
+      <article class="video-card">
+        <button class="video-open" type="button">
+          <img class="video-preview" alt="Превью видео" loading="lazy" />
+          <span class="video-play" aria-hidden="true">▶</span>
+          <span class="video-lock" hidden>PRIVATE</span>
+        </button>
+        <div class="video-body">
+          <div class="video-row">
+            <span class="video-category-badge"></span>
+            <span class="video-visibility-badge"></span>
+          </div>
+          <h3 class="video-title"></h3>
+          <p class="video-description"></p>
+          <div class="video-row video-row-actions">
+            <button class="video-delete" type="button" aria-label="Удалить видео">Удалить</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

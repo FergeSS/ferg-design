@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="ferg-api-base" content="" />
+    <title>Ferg Design</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=Tektur:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-role="public">
+    <div class="background-mesh" aria-hidden="true"></div>
+
+    <header class="hero section">
+      <nav class="top-nav">
+        <p class="brand">Ferg Design</p>
+        <a class="ghost-btn" href="#portfolio">Портфолио</a>
+      </nav>
+
+      <div class="hero-grid">
+        <div>
+          <p class="kicker">Photoshop Portfolio</p>
+          <h1>
+            Ferg Design
+            <span>фото и видео кейсы в одном пространстве</span>
+          </h1>
+          <p class="hero-copy">
+            Подборка ретуши, фотоманипуляций и видео-проектов. Переключай вкладки,
+            смотри серии кадров и открывай видео в полноэкранном плеере.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-btn" href="#portfolio">Открыть портфолио</a>
+          </div>
+        </div>
+
+        <aside class="hero-stats">
+          <article>
+            <p id="photo-count">0</p>
+            <span>Фото работ</span>
+          </article>
+          <article>
+            <p id="video-count">0</p>
+            <span>Видео работ</span>
+          </article>
+          <article>
+            <p id="private-count">0</p>
+            <span>Приватных видео</span>
+          </article>
+        </aside>
+      </div>
+    </header>
+
+    <main>
+      <section id="portfolio" class="section">
+        <div class="section-head">
+          <p class="kicker">Portfolio</p>
+          <h2>Портфолио работ</h2>
+        </div>
+
+        <div class="portfolio-tabs" role="tablist" aria-label="Формат портфолио">
+          <button
+            class="portfolio-tab active"
+            id="tab-photo"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="photo-panel"
+            data-tab-target="photo"
+          >
+            Фото
+          </button>
+          <button
+            class="portfolio-tab"
+            id="tab-video"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="video-panel"
+            data-tab-target="video"
+          >
+            Видео
+          </button>
+        </div>
+
+        <section id="photo-panel" class="tab-panel active" role="tabpanel" aria-labelledby="tab-photo" data-tab-panel="photo">
+          <div id="gallery-grid" class="gallery-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="video-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-video" data-tab-panel="video">
+          <div id="video-category-list" class="video-category-list" aria-live="polite"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="viewer" class="viewer">
+      <button id="viewer-close" class="viewer-close" aria-label="Закрыть">✕</button>
+      <div class="viewer-content">
+        <img id="viewer-image" alt="Полноразмерное изображение" />
+      </div>
+      <div class="viewer-meta">
+        <h3 id="viewer-title"></h3>
+        <p id="viewer-description"></p>
+      </div>
+      <div class="viewer-controls">
+        <button id="viewer-prev" class="ghost-btn" type="button">← Назад</button>
+        <p id="viewer-position"></p>
+        <button id="viewer-next" class="ghost-btn" type="button">Вперед →</button>
+      </div>
+      <div id="viewer-thumbs" class="viewer-thumbs"></div>
+    </dialog>
+
+    <dialog id="video-viewer" class="viewer video-viewer">
+      <button id="video-viewer-close" class="viewer-close" aria-label="Закрыть">✕</button>
+      <div class="viewer-content video-player-shell">
+        <video id="viewer-video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="viewer-meta">
+        <h3 id="viewer-video-title"></h3>
+        <p id="viewer-video-description"></p>
+      </div>
+      <div class="video-viewer-row">
+        <span id="viewer-video-category" class="video-tag"></span>
+        <span id="viewer-video-visibility" class="video-tag"></span>
+      </div>
+    </dialog>
+
+    <template id="work-card-template">
+      <article class="work-card">
+        <button class="work-open" type="button">
+          <img class="work-cover" alt="Превью работы" loading="lazy" />
+        </button>
+        <div class="work-body">
+          <div class="work-row">
+            <span class="work-badge"></span>
+          </div>
+          <h3 class="work-title"></h3>
+          <p class="work-description"></p>
+          <div class="work-stack"></div>
+        </div>
+      </article>
+    </template>
+
+    <template id="video-card-template">
+      <article class="video-card">
+        <button class="video-open" type="button">
+          <img class="video-preview" alt="Превью видео" loading="lazy" />
+          <span class="video-play" aria-hidden="true">▶</span>
+          <span class="video-lock" hidden>PRIVATE</span>
+        </button>
+        <div class="video-body">
+          <div class="video-row">
+            <span class="video-category-badge"></span>
+            <span class="video-visibility-badge"></span>
+          </div>
+          <h3 class="video-title"></h3>
+          <p class="video-description"></p>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

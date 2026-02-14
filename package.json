@@ -1,0 +1,18 @@
+{
+  "name": "photoshop-portfolio-landing",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "api:dev": "npm --prefix server run dev",
+    "api:start": "npm --prefix server run start",
+    "api:db:init": "npm --prefix server run db:init",
+    "secrets:scan": "node scripts/scan-secrets.mjs",
+    "secrets:scan:staged": "node scripts/scan-secrets.mjs --staged",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}
