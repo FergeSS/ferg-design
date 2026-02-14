@@ -625,6 +625,25 @@ function renderStats() {
   }
 }
 
+function applyCardAspectRatioFromImage(card, imageElement) {
+  if (!card || !imageElement) {
+    return;
+  }
+
+  const update = () => {
+    const width = Number(imageElement.naturalWidth) || 0;
+    const height = Number(imageElement.naturalHeight) || 0;
+    if (width > 0 && height > 0) {
+      card.style.setProperty("--work-ratio", `${width} / ${height}`);
+    }
+  };
+
+  imageElement.addEventListener("load", update, { once: true });
+  if (imageElement.complete) {
+    update();
+  }
+}
+
 function renderPhotoGallery() {
   if (!photoGalleryGrid || !photoCardTemplate) {
     return;
@@ -656,6 +675,7 @@ function renderPhotoGallery() {
 
       cover.src = coverSrc;
       cover.alt = `Превью ${work.title}`;
+      applyCardAspectRatioFromImage(card, cover);
 
       badge.textContent = work.format === "single" ? "Single" : `Series ${work.images.length} шт.`;
 

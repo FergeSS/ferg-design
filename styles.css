@@ -345,8 +345,7 @@ h2 {
   box-shadow: var(--shadow);
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 11;
-  min-height: 350px;
+  aspect-ratio: var(--work-ratio, 16 / 9);
   margin: 0;
   transform: translateY(0);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
