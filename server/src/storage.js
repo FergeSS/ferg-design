@@ -55,6 +55,27 @@ export async function uploadBuffer({ key, buffer, mimeType }) {
   };
 }
 
+export async function uploadStream({ key, stream, mimeType, contentLength }) {
+  const input = {
+    Bucket: config.s3.bucket,
+    Key: key,
+    Body: stream,
+    ContentType: mimeType || "application/octet-stream",
+    CacheControl: "public, max-age=31536000, immutable",
+  };
+
+  if (Number.isFinite(contentLength) && contentLength > 0) {
+    input.ContentLength = contentLength;
+  }
+
+  await client.send(new PutObjectCommand(input));
+
+  return {
+    key,
+    publicUrl: getPublicMediaUrl(key),
+  };
+}
+
 export async function deleteObjectByKey(key) {
   if (!key) {
     return;

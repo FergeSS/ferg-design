@@ -3,24 +3,60 @@ import cors from "cors";
 import helmet from "helmet";
 import multer from "multer";
 import bcrypt from "bcryptjs";
+import { createReadStream, mkdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { config } from "./config.js";
 import { query, withTransaction } from "./db.js";
 import {
   deleteManyByKeys,
   getPublicMediaUrl,
   getSignedReadUrl,
-  uploadBuffer,
+  uploadStream,
 } from "./storage.js";
 import { isAdminRequest, requireAdmin } from "./auth.js";
 import { buildObjectKey, createHttpError, toHexColor } from "./utils.js";
 import { resolveYandexDiskDirectUrl } from "./yadisk.js";
 
+const TEMP_UPLOAD_DIR = path.join(os.tmpdir(), "ferg-design-uploads");
+mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
+
+function safeUploadFilename(name) {
+  const cleaned = String(name || "upload")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+/, "");
+  return cleaned || "upload";
+}
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, TEMP_UPLOAD_DIR),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      cb(null, `${unique}-${safeUploadFilename(file.originalname)}`);
+    },
+  }),
   limits: {
     fileSize: config.maxUploadMb * 1024 * 1024,
   },
 });
+
+async function cleanupTempFiles(files) {
+  const fileList = Array.isArray(files) ? files : [];
+  await Promise.all(
+    fileList
+      .map((file) => file?.path)
+      .filter(Boolean)
+      .map(async (filePath) => {
+        try {
+          await rm(filePath, { force: true });
+        } catch {
+          // best effort temp cleanup
+        }
+      }),
+  );
+}
 
 function corsOptions() {
   if (config.corsOrigins.includes("*")) {
@@ -346,10 +382,11 @@ function buildApp() {
             }
 
             const key = buildObjectKey(`photos/${workRow.id}`, file.originalname);
-            await uploadBuffer({
+            await uploadStream({
               key,
-              buffer: file.buffer,
+              stream: createReadStream(file.path),
               mimeType: file.mimetype,
+              contentLength: Number(file.size) || undefined,
             });
 
             uploadedKeys.push(key);
@@ -386,6 +423,8 @@ function buildApp() {
       res.status(201).json({ item: work });
     } catch (error) {
       next(error);
+    } finally {
+      await cleanupTempFiles(files);
     }
   });
 
@@ -446,6 +485,10 @@ function buildApp() {
     { name: "preview", maxCount: 1 },
   ]), async (req, res, next) => {
     const files = req.files || {};
+    const allFiles = [
+      ...(Array.isArray(files.video) ? files.video : []),
+      ...(Array.isArray(files.preview) ? files.preview : []),
+    ];
 
     try {
       const title = requireText(req.body.title, "title");
@@ -503,20 +546,22 @@ function buildApp() {
 
         try {
           const previewKey = buildObjectKey(`videos/previews/${categoryId}`, previewFile.originalname);
-          await uploadBuffer({
+          await uploadStream({
             key: previewKey,
-            buffer: previewFile.buffer,
+            stream: createReadStream(previewFile.path),
             mimeType: previewFile.mimetype,
+            contentLength: Number(previewFile.size) || undefined,
           });
           uploadedKeys.push(previewKey);
 
           let videoKey = null;
           if (sourceType === "upload" && videoFile) {
             videoKey = buildObjectKey(`videos/files/${categoryId}`, videoFile.originalname);
-            await uploadBuffer({
+            await uploadStream({
               key: videoKey,
-              buffer: videoFile.buffer,
+              stream: createReadStream(videoFile.path),
               mimeType: videoFile.mimetype,
+              contentLength: Number(videoFile.size) || undefined,
             });
             uploadedKeys.push(videoKey);
           }
@@ -580,6 +625,8 @@ function buildApp() {
       res.status(201).json({ item });
     } catch (error) {
       next(error);
+    } finally {
+      await cleanupTempFiles(allFiles);
     }
   });
 

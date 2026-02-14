@@ -4,6 +4,7 @@ Backend для хранения фото/видео вне браузера:
 - метаданные в PostgreSQL;
 - фото/превью/видео-файлы в Yandex Object Storage;
 - приватные видео через пароль + временная signed URL.
+- загрузка на сервере без хранения файлов в RAM (upload -> temp file -> stream в Object Storage).
 
 ## 1) Подготовка
 
