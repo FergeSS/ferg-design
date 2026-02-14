@@ -65,6 +65,7 @@ Frontend читает API URL в таком порядке:
 
 Полная инструкция вынесена в:
 - `DEPLOY_PUBLIC_DOMAIN.md`
+- `deploy/README_VPS.md` (готовые `Caddyfile` + `systemd` для VPS)
 
 ## API docs
 

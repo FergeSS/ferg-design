@@ -1,0 +1,12 @@
+fergdesign.ru, www.fergdesign.ru {
+    root * /var/www/ferg-design
+    encode gzip zstd
+
+    @api path /api/* /health
+    reverse_proxy @api 127.0.0.1:8787
+
+    @static path *.js *.css *.png *.jpg *.jpeg *.webp *.gif *.svg *.ico *.woff *.woff2 *.ttf
+    header @static Cache-Control "public, max-age=604800, immutable"
+
+    file_server
+}
