@@ -6,9 +6,11 @@ services:
     environment:
       POSTGRES_DB: ferg_design
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # IMPORTANT: override in production (set FERG_POSTGRES_PASSWORD in /opt/ferg/.env)
+      POSTGRES_PASSWORD: ${FERG_POSTGRES_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      # Bind to localhost so Postgres isn't exposed to the internet.
+      - "127.0.0.1:5432:5432"
     volumes:
       - ferg_postgres_data:/var/lib/postgresql/data
     healthcheck:

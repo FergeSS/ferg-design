@@ -24,10 +24,32 @@ Create `server/.env` and set real values for:
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
 
+Create `/opt/ferg/.env` for Docker Compose and set a strong Postgres password:
+
+```bash
+cat > /opt/ferg/.env <<'EOF'
+FERG_POSTGRES_PASSWORD=CHANGE_ME_STRONG_PASSWORD
+EOF
+chmod 600 /opt/ferg/.env
+```
+
+Then make sure `DATABASE_URL` in `server/.env` uses the same password.
+
 Then start Postgres and init schema:
 
 ```bash
 cd /opt/ferg
+docker compose up -d
+npm --prefix server run db:init
+```
+
+Note: if you previously ran Postgres with `5432:5432` exposed publicly and a weak password, assume it's compromised.
+The safest recovery is to stop it and recreate the volume (this deletes DB data):
+
+```bash
+cd /opt/ferg
+docker compose down
+docker volume rm ferg_ferg_postgres_data || true
 docker compose up -d
 npm --prefix server run db:init
 ```
