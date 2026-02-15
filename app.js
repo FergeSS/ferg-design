@@ -78,6 +78,41 @@ const adminApiKeyInput = document.querySelector("#admin-api-key");
 const adminAuthStatus = document.querySelector("#admin-auth-status");
 const adminAuthResetBtn = document.querySelector("#admin-auth-reset");
 
+const photoEditor = document.querySelector("#photo-editor");
+const photoEditorForm = document.querySelector("#photo-editor-form");
+const photoEditorClose = document.querySelector("#photo-editor-close");
+const photoEditorCancel = document.querySelector("#photo-editor-cancel");
+const photoEditorSubtitle = document.querySelector("#photo-editor-subtitle");
+const photoEditTitleInput = document.querySelector("#photo-edit-title");
+const photoEditDescriptionInput = document.querySelector("#photo-edit-description");
+const photoEditFilesInput = document.querySelector("#photo-edit-files");
+const photoEditHint = document.querySelector("#photo-edit-hint");
+const photoEditPreview = document.querySelector("#photo-edit-preview");
+const photoEditProgress = document.querySelector("#photo-edit-progress");
+const photoEditProgressBar = document.querySelector("#photo-edit-progress-bar");
+const photoEditProgressText = document.querySelector("#photo-edit-progress-text");
+
+const videoEditor = document.querySelector("#video-editor");
+const videoEditorForm = document.querySelector("#video-editor-form");
+const videoEditorClose = document.querySelector("#video-editor-close");
+const videoEditorCancel = document.querySelector("#video-editor-cancel");
+const videoEditorSubtitle = document.querySelector("#video-editor-subtitle");
+const videoEditTitleInput = document.querySelector("#video-edit-title");
+const videoEditCategorySelect = document.querySelector("#video-edit-category");
+const videoEditDescriptionInput = document.querySelector("#video-edit-description");
+const videoEditPreviewInput = document.querySelector("#video-edit-preview-file");
+const videoEditFileWrap = document.querySelector("#video-edit-file-wrap");
+const videoEditFileInput = document.querySelector("#video-edit-file");
+const videoEditYadiskLinkWrap = document.querySelector("#video-edit-yadisk-link-wrap");
+const videoEditYadiskLinkInput = document.querySelector("#video-edit-yadisk-link");
+const videoEditSourceInputs = Array.from(document.querySelectorAll('input[name="video-edit-source"]'));
+const videoEditVisibilityInputs = Array.from(document.querySelectorAll('input[name="video-edit-visibility"]'));
+const videoEditPasswordWrap = document.querySelector("#video-edit-password-wrap");
+const videoEditPasswordInput = document.querySelector("#video-edit-password");
+const videoEditProgress = document.querySelector("#video-edit-progress");
+const videoEditProgressBar = document.querySelector("#video-edit-progress-bar");
+const videoEditProgressText = document.querySelector("#video-edit-progress-text");
+
 let apiBaseUrl = readInitialApiBaseUrl();
 let adminApiKey = isAdmin ? readSessionValue(ADMIN_KEY_STORAGE_KEY) : "";
 
@@ -89,6 +124,14 @@ let selectedPhotoFiles = [];
 let selectedVideoFile = null;
 let selectedVideoPreviewFile = null;
 
+let editingPhotoWorkId = null;
+let editingVideoId = null;
+let photoEditSelectedFiles = [];
+let photoEditObjectUrls = [];
+let videoEditSelectedVideoFile = null;
+let videoEditSelectedPreviewFile = null;
+let videoEditObjectUrls = [];
+
 let unlockedPrivateVideoIds = loadUnlockedPrivateVideoIds();
 let privateVideoPasswords = loadPrivateVideoPasswords();
 
@@ -98,6 +141,29 @@ let activeVideoId = null;
 
 function makeId() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+function createObjectUrl(file, registry) {
+  const url = URL.createObjectURL(file);
+  if (Array.isArray(registry)) {
+    registry.push(url);
+  }
+  return url;
+}
+
+function revokeObjectUrls(registry) {
+  if (!Array.isArray(registry) || !registry.length) {
+    return;
+  }
+
+  registry.forEach((url) => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  });
+  registry.length = 0;
 }
 
 function readLocalValue(key) {
@@ -537,11 +603,27 @@ function getProgressNodes(type) {
     };
   }
 
+  if (type === "photoEdit") {
+    return {
+      root: photoEditProgress,
+      bar: photoEditProgressBar,
+      text: photoEditProgressText,
+    };
+  }
+
   if (type === "video") {
     return {
       root: videoUploadProgress,
       bar: videoUploadProgressBar,
       text: videoUploadProgressText,
+    };
+  }
+
+  if (type === "videoEdit") {
+    return {
+      root: videoEditProgress,
+      bar: videoEditProgressBar,
+      text: videoEditProgressText,
     };
   }
 
@@ -669,6 +751,7 @@ function renderPhotoGallery() {
       const title = card.querySelector(".work-title");
       const description = card.querySelector(".work-description");
       const stack = card.querySelector(".work-stack");
+      const editBtn = card.querySelector(".work-edit");
       const deleteBtn = card.querySelector(".work-delete");
 
       const coverSrc = work.images[0] || encodeSvg("NO IMAGE", "#1b7bd1", "#0b3f69");
@@ -709,6 +792,14 @@ function renderPhotoGallery() {
           });
         } else {
           deleteBtn.remove();
+        }
+      }
+
+      if (editBtn) {
+        if (isAdmin) {
+          editBtn.addEventListener("click", () => openPhotoEditor(work.id));
+        } else {
+          editBtn.remove();
         }
       }
 
@@ -902,6 +993,226 @@ async function removePhotoWork(id) {
       setAdminAuthStatus("Неверный Admin API Key. Обнови ключ и повтори.", "error");
     }
     alert(`Не удалось удалить фото: ${error.message}`);
+  }
+}
+
+function resetPhotoEditorState() {
+  editingPhotoWorkId = null;
+  photoEditSelectedFiles = [];
+  revokeObjectUrls(photoEditObjectUrls);
+
+  if (photoEditFilesInput) {
+    photoEditFilesInput.value = "";
+    photoEditFilesInput.multiple = true;
+  }
+
+  if (photoEditPreview) {
+    photoEditPreview.innerHTML = "";
+  }
+
+  if (photoEditProgress) {
+    photoEditProgress.classList.add("is-hidden");
+    photoEditProgress.classList.remove("is-error");
+  }
+}
+
+function closePhotoEditor() {
+  if (photoEditor && photoEditor.open) {
+    photoEditor.close();
+  }
+  resetPhotoEditorState();
+}
+
+function setPhotoEditSelectedFiles(work, fileList) {
+  if (!work) {
+    photoEditSelectedFiles = [];
+    return;
+  }
+
+  let files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
+
+  if (work.format === "single" && files.length > 1) {
+    files = [files[0]];
+  }
+
+  photoEditSelectedFiles = files;
+}
+
+function renderPhotoEditPreview(work) {
+  if (!photoEditPreview) {
+    return;
+  }
+
+  photoEditPreview.innerHTML = "";
+  revokeObjectUrls(photoEditObjectUrls);
+
+  if (!work) {
+    return;
+  }
+
+  const usingNewFiles = photoEditSelectedFiles.length > 0;
+  const sources = usingNewFiles
+    ? photoEditSelectedFiles.map((file, index) => ({
+        kind: "file",
+        label: `Новый файл ${index + 1}: ${file.name}`,
+        file,
+      }))
+    : work.images.map((src, index) => ({
+        kind: "url",
+        label: `Текущее изображение ${index + 1}`,
+        src,
+      }));
+
+  const limit = Math.min(sources.length, 12);
+  for (let i = 0; i < limit; i += 1) {
+    const item = sources[i];
+    const previewItem = document.createElement("div");
+    previewItem.className = "upload-preview-item";
+
+    const img = document.createElement("img");
+    if (item.kind === "file") {
+      img.src = createObjectUrl(item.file, photoEditObjectUrls);
+    } else {
+      img.src = item.src;
+    }
+    img.alt = item.label;
+
+    const caption = document.createElement("span");
+    caption.textContent = item.label;
+
+    previewItem.append(img, caption);
+    photoEditPreview.append(previewItem);
+  }
+
+  if (sources.length > limit) {
+    const more = document.createElement("div");
+    more.className = "upload-file-item";
+    more.textContent = `+ ещё ${sources.length - limit}`;
+    photoEditPreview.append(more);
+  }
+}
+
+function openPhotoEditor(workId) {
+  if (!isAdmin || !photoEditor || typeof photoEditor.showModal !== "function") {
+    return;
+  }
+
+  const work = photoWorks.find((item) => item.id === workId);
+  if (!work) {
+    return;
+  }
+
+  editingPhotoWorkId = workId;
+  photoEditSelectedFiles = [];
+  revokeObjectUrls(photoEditObjectUrls);
+
+  if (photoEditorSubtitle) {
+    const formatLabel = work.format === "single" ? "Single" : `Series · ${work.images.length} фото`;
+    photoEditorSubtitle.textContent = `${formatLabel} · ID ${work.id}`;
+  }
+
+  if (photoEditTitleInput) {
+    photoEditTitleInput.value = work.title;
+  }
+
+  if (photoEditDescriptionInput) {
+    photoEditDescriptionInput.value = work.description;
+  }
+
+  if (photoEditFilesInput) {
+    photoEditFilesInput.value = "";
+    photoEditFilesInput.multiple = work.format !== "single";
+  }
+
+  if (photoEditHint) {
+    photoEditHint.textContent =
+      work.format === "single"
+        ? "Если выберешь файл, он заменит текущую работу. Для Single нужен ровно 1 файл."
+        : "Если выберешь файлы, они заменят текущую серию. Для Series нужно минимум 2 файла.";
+  }
+
+  renderPhotoEditPreview(work);
+  photoEditor.showModal();
+}
+
+async function onPhotoEditorSubmit(event) {
+  event.preventDefault();
+
+  if (!isAdmin || !photoEditorForm || !editingPhotoWorkId) {
+    return;
+  }
+
+  if (!ensureAdminAuth()) {
+    return;
+  }
+
+  const work = photoWorks.find((item) => item.id === editingPhotoWorkId);
+  if (!work) {
+    alert("Не удалось найти работу для редактирования. Обнови страницу и попробуй снова.");
+    closePhotoEditor();
+    return;
+  }
+
+  const title = String(photoEditTitleInput?.value || "").trim();
+  const description = String(photoEditDescriptionInput?.value || "").trim();
+
+  if (!title || !description) {
+    alert("Заполни название и описание.");
+    return;
+  }
+
+  if (photoEditSelectedFiles.length) {
+    if (work.format === "single" && photoEditSelectedFiles.length !== 1) {
+      alert("Для Single нужно выбрать ровно 1 файл.");
+      return;
+    }
+
+    if (work.format === "group" && photoEditSelectedFiles.length < 2) {
+      alert("Для Series нужно выбрать минимум 2 файла.");
+      return;
+    }
+  }
+
+  const submitBtn = photoEditorForm.querySelector('button[type="submit"]');
+  setBusy(submitBtn, true, "Сохранение...");
+  showUploadProgress("photoEdit", "Обновление фото");
+
+  try {
+    const payload = new FormData();
+    payload.append("title", title);
+    payload.append("description", description);
+    photoEditSelectedFiles.forEach((file) => payload.append("files", file, file.name));
+
+    const response = await apiUploadRequest(`/api/photos/${work.id}`, {
+      method: "PATCH",
+      body: payload,
+      admin: true,
+      onUploadProgress: (event) => {
+        updateUploadProgress("photoEdit", event, "Обновление фото");
+      },
+    });
+
+    const updated = normalizePhotoItem(response?.item || {});
+    photoWorks = [updated, ...photoWorks.filter((item) => item.id !== updated.id)];
+
+    renderPhotoGallery();
+    renderStats();
+
+    if (activePhotoWorkId === updated.id) {
+      activePhotoIndex = Math.min(activePhotoIndex, Math.max(0, updated.images.length - 1));
+      updatePhotoViewer();
+    }
+
+    finishUploadProgress("photoEdit", "Сохранено");
+    closePhotoEditor();
+  } catch (error) {
+    if (error.status === 401) {
+      setAdminAuthStatus("Неверный Admin API Key. Обнови ключ и повтори.", "error");
+    }
+    failUploadProgress("photoEdit", "Ошибка сохранения");
+    alert(toUserFacingError("Не удалось сохранить фото работу", error));
+  } finally {
+    setBusy(submitBtn, false, "");
   }
 }
 
@@ -1379,6 +1690,313 @@ async function removeVideo(videoId) {
   }
 }
 
+function resetVideoEditorState() {
+  editingVideoId = null;
+  videoEditSelectedVideoFile = null;
+  videoEditSelectedPreviewFile = null;
+  revokeObjectUrls(videoEditObjectUrls);
+
+  if (videoEditFileInput) {
+    videoEditFileInput.value = "";
+  }
+
+  if (videoEditPreviewInput) {
+    videoEditPreviewInput.value = "";
+  }
+
+  if (videoEditYadiskLinkInput) {
+    videoEditYadiskLinkInput.value = "";
+  }
+
+  if (videoEditPasswordInput) {
+    videoEditPasswordInput.value = "";
+    videoEditPasswordInput.required = false;
+  }
+
+  if (videoEditProgress) {
+    videoEditProgress.classList.add("is-hidden");
+    videoEditProgress.classList.remove("is-error");
+  }
+}
+
+function closeVideoEditor() {
+  if (videoEditor && videoEditor.open) {
+    videoEditor.close();
+  }
+  resetVideoEditorState();
+}
+
+function getVideoEditSource() {
+  const checked = videoEditorForm?.querySelector('input[name="video-edit-source"]:checked');
+  return checked ? checked.value : "upload";
+}
+
+function getVideoEditVisibility() {
+  const checked = videoEditorForm?.querySelector('input[name="video-edit-visibility"]:checked');
+  return checked ? checked.value : "public";
+}
+
+function renderVideoEditCategoryOptions(selectedValue) {
+  if (!videoEditCategorySelect) {
+    return;
+  }
+
+  const wanted = String(selectedValue || "");
+  videoEditCategorySelect.innerHTML = "";
+
+  if (!videoCategories.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Сначала создай категорию";
+    videoEditCategorySelect.append(option);
+    videoEditCategorySelect.disabled = true;
+    return;
+  }
+
+  videoEditCategorySelect.disabled = false;
+
+  videoCategories
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+    .forEach((category) => {
+      const option = document.createElement("option");
+      option.value = category.id;
+      option.textContent = category.name;
+      videoEditCategorySelect.append(option);
+    });
+
+  if (wanted && videoCategories.some((item) => item.id === wanted)) {
+    videoEditCategorySelect.value = wanted;
+  }
+}
+
+function updateVideoEditSourceUI() {
+  if (!videoEditFileWrap || !videoEditFileInput || !videoEditYadiskLinkWrap || !videoEditYadiskLinkInput) {
+    return;
+  }
+
+  const source = getVideoEditSource();
+  const useUpload = source === "upload";
+
+  videoEditFileWrap.classList.toggle("is-hidden", !useUpload);
+  videoEditYadiskLinkWrap.classList.toggle("is-hidden", useUpload);
+
+  videoEditYadiskLinkInput.required = !useUpload;
+
+  const current = editingVideoId ? getVideoById(editingVideoId) : null;
+  const switchingToUpload = useUpload && current && current.sourceType !== "upload";
+  videoEditFileInput.required = Boolean(switchingToUpload);
+
+  if (!useUpload) {
+    videoEditFileInput.value = "";
+    videoEditSelectedVideoFile = null;
+  }
+}
+
+function updateVideoEditVisibilityUI() {
+  if (!videoEditPasswordWrap || !videoEditPasswordInput) {
+    return;
+  }
+
+  const isPrivate = getVideoEditVisibility() === "private";
+  videoEditPasswordWrap.classList.toggle("is-hidden", !isPrivate);
+
+  const current = editingVideoId ? getVideoById(editingVideoId) : null;
+  const requirePassword = isPrivate && current && current.visibility !== "private";
+  videoEditPasswordInput.required = Boolean(requirePassword);
+
+  if (!isPrivate) {
+    videoEditPasswordInput.value = "";
+  }
+}
+
+function openVideoEditor(videoId) {
+  if (!isAdmin || !videoEditor || typeof videoEditor.showModal !== "function") {
+    return;
+  }
+
+  const video = getVideoById(videoId);
+  if (!video) {
+    return;
+  }
+
+  editingVideoId = videoId;
+  videoEditSelectedVideoFile = null;
+  videoEditSelectedPreviewFile = null;
+  revokeObjectUrls(videoEditObjectUrls);
+
+  if (videoEditorSubtitle) {
+    videoEditorSubtitle.textContent = `ID ${video.id} · ${video.visibility.toUpperCase()} · ${video.sourceType.toUpperCase()}`;
+  }
+
+  if (videoEditTitleInput) {
+    videoEditTitleInput.value = video.title;
+  }
+
+  if (videoEditDescriptionInput) {
+    videoEditDescriptionInput.value = video.description;
+  }
+
+  renderVideoEditCategoryOptions(video.categoryId);
+
+  if (videoEditCategorySelect && video.categoryId) {
+    videoEditCategorySelect.value = video.categoryId;
+  }
+
+  videoEditSourceInputs.forEach((radio) => {
+    radio.checked = radio.value === video.sourceType;
+  });
+
+  videoEditVisibilityInputs.forEach((radio) => {
+    radio.checked = radio.value === video.visibility;
+  });
+
+  if (videoEditYadiskLinkInput) {
+    videoEditYadiskLinkInput.value = video.sourceType === "yadisk" ? video.sourceLink : "";
+  }
+
+  if (videoEditFileInput) {
+    videoEditFileInput.value = "";
+  }
+
+  if (videoEditPreviewInput) {
+    videoEditPreviewInput.value = "";
+  }
+
+  if (videoEditPasswordInput) {
+    videoEditPasswordInput.value = "";
+  }
+
+  updateVideoEditSourceUI();
+  updateVideoEditVisibilityUI();
+  videoEditor.showModal();
+}
+
+async function onVideoEditorSubmit(event) {
+  event.preventDefault();
+
+  if (!isAdmin || !videoEditorForm || !editingVideoId) {
+    return;
+  }
+
+  if (!ensureAdminAuth()) {
+    return;
+  }
+
+  const current = getVideoById(editingVideoId);
+  if (!current) {
+    alert("Не удалось найти видео для редактирования. Обнови страницу и попробуй снова.");
+    closeVideoEditor();
+    return;
+  }
+
+  const title = String(videoEditTitleInput?.value || "").trim();
+  const description = String(videoEditDescriptionInput?.value || "").trim();
+  const categoryId = String(videoEditCategorySelect?.value || "").trim();
+  const sourceType = getVideoEditSource();
+  const visibility = getVideoEditVisibility();
+  const sourceLink = String(videoEditYadiskLinkInput?.value || "").trim();
+  const password = String(videoEditPasswordInput?.value || "").trim();
+
+  if (!title || !description || !categoryId) {
+    alert("Заполни название, описание и категорию.");
+    return;
+  }
+
+  if (sourceType === "yadisk" && !sourceLink) {
+    alert("Для источника Яндекс Диск нужна публичная ссылка.");
+    videoEditYadiskLinkInput?.focus();
+    return;
+  }
+
+  if (sourceType === "upload" && current.sourceType !== "upload" && !videoEditSelectedVideoFile) {
+    alert("Чтобы переключить видео с Яндекс Диска на файл, нужно выбрать видео-файл.");
+    videoEditFileInput?.focus();
+    return;
+  }
+
+  if (visibility === "private" && current.visibility !== "private" && !password) {
+    alert("Для приватного видео нужен пароль.");
+    videoEditPasswordInput?.focus();
+    return;
+  }
+
+  const submitBtn = videoEditorForm.querySelector('button[type="submit"]');
+  setBusy(submitBtn, true, "Сохранение...");
+  showUploadProgress("videoEdit", "Обновление видео");
+
+  try {
+    const payload = new FormData();
+    payload.append("title", title);
+    payload.append("description", description);
+    payload.append("categoryId", categoryId);
+    payload.append("visibility", visibility);
+    payload.append("sourceType", sourceType);
+
+    if (sourceType === "yadisk") {
+      payload.append("sourceLink", sourceLink);
+    }
+
+    if (visibility === "private" && password) {
+      payload.append("password", password);
+    }
+
+    if (videoEditSelectedPreviewFile) {
+      payload.append("preview", videoEditSelectedPreviewFile, videoEditSelectedPreviewFile.name);
+    }
+
+    if (sourceType === "upload" && videoEditSelectedVideoFile) {
+      payload.append("video", videoEditSelectedVideoFile, videoEditSelectedVideoFile.name);
+    }
+
+    const response = await apiUploadRequest(`/api/videos/${current.id}`, {
+      method: "PATCH",
+      body: payload,
+      admin: true,
+      onUploadProgress: (event) => {
+        updateUploadProgress("videoEdit", event, "Обновление видео");
+      },
+    });
+
+    const updated = normalizeVideoItem(response?.item || {});
+    videos = [updated, ...videos.filter((item) => item.id !== updated.id)];
+
+    renderAllVideoLists();
+    renderCategoryAdminList();
+    renderStats();
+
+    if (activeVideoId === updated.id && videoViewer?.open) {
+      if (videoViewerTitle) {
+        videoViewerTitle.textContent = updated.title;
+      }
+      if (videoViewerDescription) {
+        videoViewerDescription.textContent = updated.description;
+      }
+      if (videoViewerCategory) {
+        videoViewerCategory.textContent = `Категория: ${updated.categoryName}`;
+      }
+      if (videoViewerVisibility) {
+        videoViewerVisibility.textContent =
+          updated.visibility === "private" ? "Доступ: Private / По паролю" : "Доступ: Public";
+      }
+      if (videoViewerPlayer) {
+        videoViewerPlayer.poster = updated.previewImage || "";
+      }
+    }
+
+    finishUploadProgress("videoEdit", "Сохранено");
+    closeVideoEditor();
+  } catch (error) {
+    if (error.status === 401) {
+      setAdminAuthStatus("Неверный Admin API Key. Обнови ключ и повтори.", "error");
+    }
+    failUploadProgress("videoEdit", "Ошибка сохранения");
+    alert(toUserFacingError("Не удалось сохранить видео", error));
+  } finally {
+    setBusy(submitBtn, false, "");
+  }
+}
+
 function isVideoLocked(video) {
   if (isAdmin) {
     return false;
@@ -1402,6 +2020,7 @@ function createVideoCard(video, adminMode) {
   const visibilityBadge = card.querySelector(".video-visibility-badge");
   const title = card.querySelector(".video-title");
   const description = card.querySelector(".video-description");
+  const editBtn = card.querySelector(".video-edit");
   const deleteBtn = card.querySelector(".video-delete");
   const actionRow = card.querySelector(".video-row-actions");
 
@@ -1440,6 +2059,14 @@ function createVideoCard(video, adminMode) {
       });
     } else {
       deleteBtn.remove();
+    }
+  }
+
+  if (editBtn) {
+    if (adminMode) {
+      editBtn.addEventListener("click", () => openVideoEditor(video.id));
+    } else {
+      editBtn.remove();
     }
   }
 
@@ -1784,6 +2411,34 @@ function bindPhotoUploadEvents() {
   updatePhotoFormatUI();
 }
 
+function bindPhotoEditorEvents() {
+  if (!isAdmin || !photoEditor || !photoEditorForm) {
+    return;
+  }
+
+  if (photoEditorClose) {
+    photoEditorClose.addEventListener("click", closePhotoEditor);
+  }
+
+  if (photoEditorCancel) {
+    photoEditorCancel.addEventListener("click", closePhotoEditor);
+  }
+
+  if (photoEditFilesInput) {
+    photoEditFilesInput.addEventListener("change", (event) => {
+      const work = editingPhotoWorkId ? photoWorks.find((item) => item.id === editingPhotoWorkId) : null;
+      setPhotoEditSelectedFiles(work, event.target.files);
+      renderPhotoEditPreview(work);
+    });
+  }
+
+  photoEditorForm.addEventListener("submit", (event) => {
+    void onPhotoEditorSubmit(event);
+  });
+
+  photoEditor.addEventListener("close", resetPhotoEditorState);
+}
+
 function bindPhotoViewerEvents() {
   if (!photoViewer) {
     return;
@@ -1836,6 +2491,60 @@ function bindVideoViewerEvents() {
       closeVideoViewer();
     }
   });
+}
+
+function bindVideoEditorEvents() {
+  if (!isAdmin || !videoEditor || !videoEditorForm) {
+    return;
+  }
+
+  if (videoEditorClose) {
+    videoEditorClose.addEventListener("click", closeVideoEditor);
+  }
+
+  if (videoEditorCancel) {
+    videoEditorCancel.addEventListener("click", closeVideoEditor);
+  }
+
+  videoEditSourceInputs.forEach((radio) => {
+    radio.addEventListener("change", updateVideoEditSourceUI);
+  });
+
+  videoEditVisibilityInputs.forEach((radio) => {
+    radio.addEventListener("change", updateVideoEditVisibilityUI);
+  });
+
+  if (videoEditFileInput) {
+    videoEditFileInput.addEventListener("change", (event) => {
+      const file = event.target.files?.[0] || null;
+      if (file && !file.type.startsWith("video/")) {
+        alert("Видео-файл должен быть видео.");
+        videoEditFileInput.value = "";
+        videoEditSelectedVideoFile = null;
+      } else {
+        videoEditSelectedVideoFile = file;
+      }
+    });
+  }
+
+  if (videoEditPreviewInput) {
+    videoEditPreviewInput.addEventListener("change", (event) => {
+      const file = event.target.files?.[0] || null;
+      if (file && !file.type.startsWith("image/")) {
+        alert("Превью должно быть изображением.");
+        videoEditPreviewInput.value = "";
+        videoEditSelectedPreviewFile = null;
+      } else {
+        videoEditSelectedPreviewFile = file;
+      }
+    });
+  }
+
+  videoEditorForm.addEventListener("submit", (event) => {
+    void onVideoEditorSubmit(event);
+  });
+
+  videoEditor.addEventListener("close", resetVideoEditorState);
 }
 
 function bindVideoCategoryEvents() {
@@ -2104,8 +2813,10 @@ function bindAdminAuthEvents() {
 async function init() {
   bindPortfolioTabs();
   bindPhotoUploadEvents();
+  bindPhotoEditorEvents();
   bindPhotoViewerEvents();
   bindVideoViewerEvents();
+  bindVideoEditorEvents();
   bindVideoCategoryEvents();
   bindVideoUploadEvents();
   bindGlobalKeyboardEvents();

@@ -98,6 +98,14 @@ function parseSourceType(value) {
   return "upload";
 }
 
+function parseSourceTypeStrict(value) {
+  const source = String(value || "").trim();
+  if (source === "upload" || source === "yadisk") {
+    return source;
+  }
+  return null;
+}
+
 function requireText(value, name) {
   const text = String(value || "").trim();
   if (!text) {
@@ -428,6 +436,122 @@ function buildApp() {
     }
   });
 
+  app.patch("/api/photos/:id", requireAdmin, upload.array("files", config.maxPhotoFiles), async (req, res, next) => {
+    const files = Array.isArray(req.files) ? req.files : [];
+
+    try {
+      const { id } = req.params;
+
+      const hasTitle = req.body?.title !== undefined;
+      const hasDescription = req.body?.description !== undefined;
+
+      const title = hasTitle ? requireText(req.body.title, "title") : null;
+      const description = hasDescription ? requireText(req.body.description, "description") : null;
+
+      let oldKeysToDelete = [];
+
+      const item = await withTransaction(async (client) => {
+        const existingWork = await client.query(
+          `SELECT id, title, description, format, created_at FROM photo_works WHERE id = $1`,
+          [id],
+        );
+
+        if (!existingWork.rowCount) {
+          throw createHttpError(404, "Photo work not found");
+        }
+
+        const current = existingWork.rows[0];
+        const nextTitle = title ?? current.title;
+        const nextDescription = description ?? current.description;
+
+        const updatedWork = await client.query(
+          `
+            UPDATE photo_works
+            SET title = $1, description = $2
+            WHERE id = $3
+            RETURNING id, title, description, format, created_at
+          `,
+          [nextTitle, nextDescription, id],
+        );
+
+        if (files.length) {
+          if (current.format === "single" && files.length !== 1) {
+            throw createHttpError(400, "Single photo work requires exactly one image");
+          }
+
+          if (current.format === "group" && files.length < 2) {
+            throw createHttpError(400, "Group photo work requires at least two images");
+          }
+
+          const oldAssets = await client.query(
+            `SELECT object_key FROM photo_assets WHERE work_id = $1 ORDER BY order_index ASC`,
+            [id],
+          );
+
+          oldKeysToDelete = oldAssets.rows.map((row) => row.object_key).filter(Boolean);
+
+          // Replace assets atomically (transaction rollback restores previous rows on failure).
+          await client.query(`DELETE FROM photo_assets WHERE work_id = $1`, [id]);
+
+          const uploadedKeys = [];
+          try {
+            for (let i = 0; i < files.length; i += 1) {
+              const file = files[i];
+              if (!file.mimetype.startsWith("image/")) {
+                throw createHttpError(400, "All files in photo upload must be images");
+              }
+
+              const key = buildObjectKey(`photos/${id}`, file.originalname);
+              await uploadStream({
+                key,
+                stream: createReadStream(file.path),
+                mimeType: file.mimetype,
+                contentLength: Number(file.size) || undefined,
+              });
+              uploadedKeys.push(key);
+
+              await client.query(
+                `
+                  INSERT INTO photo_assets (work_id, object_key, order_index, mime_type)
+                  VALUES ($1, $2, $3, $4)
+                `,
+                [id, key, i, file.mimetype],
+              );
+            }
+          } catch (error) {
+            await deleteManyByKeys(uploadedKeys);
+            throw error;
+          }
+        }
+
+        const assetsResult = await client.query(
+          `
+            SELECT id, object_key, order_index
+            FROM photo_assets
+            WHERE work_id = $1
+            ORDER BY order_index ASC
+          `,
+          [id],
+        );
+
+        return mapPhotoRow({
+          ...updatedWork.rows[0],
+          assets: assetsResult.rows,
+        });
+      });
+
+      if (oldKeysToDelete.length) {
+        await deleteManyByKeys(oldKeysToDelete);
+      }
+
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    } finally {
+      await cleanupTempFiles(files);
+    }
+  });
+
   app.delete("/api/photos/:id", requireAdmin, async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -678,6 +802,226 @@ function buildApp() {
       });
     } catch (error) {
       next(error);
+    }
+  });
+
+  app.patch("/api/videos/:id", requireAdmin, upload.fields([
+    { name: "video", maxCount: 1 },
+    { name: "preview", maxCount: 1 },
+  ]), async (req, res, next) => {
+    const files = req.files || {};
+    const allFiles = [
+      ...(Array.isArray(files.video) ? files.video : []),
+      ...(Array.isArray(files.preview) ? files.preview : []),
+    ];
+
+    try {
+      const { id } = req.params;
+
+      const hasTitle = req.body?.title !== undefined;
+      const hasDescription = req.body?.description !== undefined;
+      const hasCategoryId = req.body?.categoryId !== undefined;
+      const hasVisibility = req.body?.visibility !== undefined;
+      const hasSourceType = req.body?.sourceType !== undefined;
+      const hasSourceLink = req.body?.sourceLink !== undefined;
+      const hasPassword = req.body?.password !== undefined;
+
+      const title = hasTitle ? requireText(req.body.title, "title") : null;
+      const description = hasDescription ? requireText(req.body.description, "description") : null;
+      const categoryId = hasCategoryId ? requireText(req.body.categoryId, "categoryId") : null;
+      const visibility = hasVisibility ? parseVisibility(req.body.visibility) : null;
+      const sourceType = hasSourceType ? parseSourceTypeStrict(req.body.sourceType) : null;
+      const sourceLink = hasSourceLink ? String(req.body.sourceLink || "").trim() : null;
+      const password = hasPassword ? String(req.body.password || "").trim() : "";
+
+      if (hasVisibility && !visibility) {
+        throw createHttpError(400, "Invalid visibility");
+      }
+
+      if (hasSourceType && !sourceType) {
+        throw createHttpError(400, "Invalid sourceType");
+      }
+
+      const previewFile = files.preview?.[0] || null;
+      const videoFile = files.video?.[0] || null;
+
+      if (previewFile && !previewFile.mimetype.startsWith("image/")) {
+        throw createHttpError(400, "Preview must be an image file");
+      }
+
+      if (videoFile && !videoFile.mimetype.startsWith("video/")) {
+        throw createHttpError(400, "Uploaded video must be a video file");
+      }
+
+      let keysToDeleteAfter = [];
+
+      const item = await withTransaction(async (client) => {
+        const currentResult = await client.query(
+          `
+            SELECT
+              v.id,
+              v.title,
+              v.description,
+              v.category_id,
+              v.visibility,
+              v.password_hash,
+              v.preview_key,
+              v.source_type,
+              v.source_link,
+              v.video_key,
+              v.created_at
+            FROM videos v
+            WHERE v.id = $1
+          `,
+          [id],
+        );
+
+        const current = currentResult.rows[0];
+        if (!current) {
+          throw createHttpError(404, "Video not found");
+        }
+
+        const nextTitle = title ?? current.title;
+        const nextDescription = description ?? current.description;
+        const nextCategoryId = categoryId ?? current.category_id;
+        const nextVisibility = visibility ?? current.visibility;
+        const nextSourceType = sourceType ?? current.source_type;
+
+        const category = await ensureCategoryExists(client, nextCategoryId);
+        if (!category) {
+          throw createHttpError(404, "Video category not found");
+        }
+
+        const uploadedKeys = [];
+        let nextPreviewKey = current.preview_key;
+        let nextVideoKey = current.video_key;
+        let nextSourceLink = current.source_link;
+
+        try {
+          if (previewFile) {
+            nextPreviewKey = buildObjectKey(`videos/previews/${nextCategoryId}`, previewFile.originalname);
+            await uploadStream({
+              key: nextPreviewKey,
+              stream: createReadStream(previewFile.path),
+              mimeType: previewFile.mimetype,
+              contentLength: Number(previewFile.size) || undefined,
+            });
+            uploadedKeys.push(nextPreviewKey);
+            keysToDeleteAfter.push(current.preview_key);
+          }
+
+          if (nextSourceType === "yadisk") {
+            const linkToSet = sourceLink ?? current.source_link;
+            if (!linkToSet) {
+              throw createHttpError(400, "Yandex Disk public link is required for yadisk source");
+            }
+
+            await resolveYandexDiskDirectUrl(linkToSet);
+            nextSourceLink = linkToSet;
+
+            // If switching from upload to Yandex Disk, drop the object key.
+            if (current.source_type === "upload" && current.video_key) {
+              keysToDeleteAfter.push(current.video_key);
+            }
+            nextVideoKey = null;
+          } else {
+            // upload source
+            nextSourceLink = null;
+
+            if (videoFile) {
+              nextVideoKey = buildObjectKey(`videos/files/${nextCategoryId}`, videoFile.originalname);
+              await uploadStream({
+                key: nextVideoKey,
+                stream: createReadStream(videoFile.path),
+                mimeType: videoFile.mimetype,
+                contentLength: Number(videoFile.size) || undefined,
+              });
+              uploadedKeys.push(nextVideoKey);
+              if (current.video_key) {
+                keysToDeleteAfter.push(current.video_key);
+              }
+            } else if (!current.video_key || current.source_type !== "upload") {
+              throw createHttpError(400, "Video file is required for upload source");
+            }
+          }
+
+          let nextPasswordHash = current.password_hash;
+          if (nextVisibility === "public") {
+            nextPasswordHash = null;
+          } else {
+            if (!nextPasswordHash && !password) {
+              throw createHttpError(400, "Password is required for private video");
+            }
+            if (password) {
+              nextPasswordHash = await bcrypt.hash(password, 12);
+            }
+          }
+
+          const updated = await client.query(
+            `
+              UPDATE videos
+              SET
+                title = $1,
+                description = $2,
+                category_id = $3,
+                visibility = $4,
+                password_hash = $5,
+                preview_key = $6,
+                source_type = $7,
+                source_link = $8,
+                video_key = $9
+              WHERE id = $10
+              RETURNING
+                id,
+                title,
+                description,
+                category_id,
+                visibility,
+                password_hash,
+                preview_key,
+                source_type,
+                source_link,
+                video_key,
+                created_at
+            `,
+            [
+              nextTitle,
+              nextDescription,
+              nextCategoryId,
+              nextVisibility,
+              nextPasswordHash,
+              nextPreviewKey,
+              nextSourceType,
+              nextSourceLink,
+              nextVideoKey,
+              id,
+            ],
+          );
+
+          return mapVideoRow(
+            {
+              ...updated.rows[0],
+              category_name: category.name,
+              category_color: category.color,
+            },
+            { admin: true },
+          );
+        } catch (error) {
+          await deleteManyByKeys(uploadedKeys);
+          throw error;
+        }
+      });
+
+      keysToDeleteAfter = keysToDeleteAfter.filter(Boolean);
+      if (keysToDeleteAfter.length) {
+        await deleteManyByKeys(keysToDeleteAfter);
+      }
+
+      res.json({ item });
+    } catch (error) {
+      next(error);
+    } finally {
+      await cleanupTempFiles(allFiles);
     }
   });
 

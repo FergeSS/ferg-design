@@ -333,7 +333,10 @@
         <div class="work-body">
           <div class="work-row">
             <span class="work-badge"></span>
-            <button class="work-delete" type="button" aria-label="Удалить работу">Удалить</button>
+            <div class="work-actions">
+              <button class="work-edit" type="button" aria-label="Редактировать работу">Редактировать</button>
+              <button class="work-delete" type="button" aria-label="Удалить работу">Удалить</button>
+            </div>
           </div>
           <h3 class="work-title"></h3>
           <p class="work-description"></p>
@@ -357,11 +360,136 @@
           <h3 class="video-title"></h3>
           <p class="video-description"></p>
           <div class="video-row video-row-actions">
+            <button class="video-edit" type="button" aria-label="Редактировать видео">Редактировать</button>
             <button class="video-delete" type="button" aria-label="Удалить видео">Удалить</button>
           </div>
         </div>
       </article>
     </template>
+
+    <dialog id="photo-editor" class="viewer editor">
+      <button id="photo-editor-close" class="viewer-close" aria-label="Закрыть">✕</button>
+      <div class="viewer-meta">
+        <h3>Редактирование фото работы</h3>
+        <p id="photo-editor-subtitle" class="editor-subtitle"></p>
+      </div>
+
+      <form id="photo-editor-form" class="upload-form editor-form">
+        <div class="input-grid">
+          <label>
+            Название
+            <input id="photo-edit-title" type="text" required />
+          </label>
+          <label>
+            Описание
+            <textarea id="photo-edit-description" rows="3" required></textarea>
+          </label>
+        </div>
+
+        <label>
+          Заменить изображения (необязательно)
+          <input id="photo-edit-files" type="file" accept="image/*" multiple />
+        </label>
+        <p id="photo-edit-hint" class="form-hint">
+          Если файлы не выбраны, обновится только название и описание.
+        </p>
+
+        <div id="photo-edit-preview" class="upload-preview-grid"></div>
+
+        <div id="photo-edit-progress" class="upload-progress is-hidden" aria-live="polite">
+          <div class="upload-progress-track">
+            <span id="photo-edit-progress-bar" class="upload-progress-bar"></span>
+          </div>
+          <p id="photo-edit-progress-text" class="upload-progress-text">Обновление 0%</p>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="primary-btn">Сохранить</button>
+          <button type="button" id="photo-editor-cancel" class="ghost-btn">Отмена</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="video-editor" class="viewer editor">
+      <button id="video-editor-close" class="viewer-close" aria-label="Закрыть">✕</button>
+      <div class="viewer-meta">
+        <h3>Редактирование видео</h3>
+        <p id="video-editor-subtitle" class="editor-subtitle"></p>
+      </div>
+
+      <form id="video-editor-form" class="upload-form editor-form">
+        <div class="input-grid">
+          <label>
+            Название видео
+            <input id="video-edit-title" type="text" required />
+          </label>
+
+          <label>
+            Категория
+            <select id="video-edit-category" required></select>
+          </label>
+
+          <label>
+            Описание
+            <textarea id="video-edit-description" rows="3" required></textarea>
+          </label>
+
+          <label>
+            Превью (необязательно)
+            <input id="video-edit-preview-file" type="file" accept="image/*" />
+          </label>
+        </div>
+
+        <div class="visibility-switch source-switch" role="radiogroup" aria-label="Источник видео">
+          <label>
+            <input type="radio" name="video-edit-source" value="upload" checked />
+            <span>Файл</span>
+          </label>
+          <label>
+            <input type="radio" name="video-edit-source" value="yadisk" />
+            <span>Яндекс Диск</span>
+          </label>
+        </div>
+
+        <label id="video-edit-file-wrap">
+          Файл видео (необязательно, оставь пустым чтобы не менять)
+          <input id="video-edit-file" type="file" accept="video/*" />
+        </label>
+
+        <label id="video-edit-yadisk-link-wrap" class="is-hidden">
+          Ссылка на Яндекс Диск
+          <input id="video-edit-yadisk-link" type="url" placeholder="https://disk.yandex.ru/..." />
+        </label>
+
+        <div class="visibility-switch" role="radiogroup" aria-label="Публичность видео">
+          <label>
+            <input type="radio" name="video-edit-visibility" value="public" checked />
+            <span>Публичное</span>
+          </label>
+          <label>
+            <input type="radio" name="video-edit-visibility" value="private" />
+            <span>Приватное</span>
+          </label>
+        </div>
+
+        <label id="video-edit-password-wrap" class="password-wrap is-hidden">
+          Пароль (оставь пустым чтобы не менять)
+          <input id="video-edit-password" type="password" placeholder="Новый пароль" />
+        </label>
+
+        <div id="video-edit-progress" class="upload-progress is-hidden" aria-live="polite">
+          <div class="upload-progress-track">
+            <span id="video-edit-progress-bar" class="upload-progress-bar"></span>
+          </div>
+          <p id="video-edit-progress-text" class="upload-progress-text">Обновление 0%</p>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="primary-btn">Сохранить</button>
+          <button type="button" id="video-editor-cancel" class="ghost-btn">Отмена</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="app.js" type="module"></script>
   </body>
