@@ -625,7 +625,7 @@ function renderStats() {
   }
 }
 
-function applyCardAspectRatioFromImage(card, imageElement) {
+function applyCardAspectRatioFromImage(card, imageElement, cssVarName = "--work-ratio") {
   if (!card || !imageElement) {
     return;
   }
@@ -634,7 +634,7 @@ function applyCardAspectRatioFromImage(card, imageElement) {
     const width = Number(imageElement.naturalWidth) || 0;
     const height = Number(imageElement.naturalHeight) || 0;
     if (width > 0 && height > 0) {
-      card.style.setProperty("--work-ratio", `${width} / ${height}`);
+      card.style.setProperty(cssVarName, `${width} / ${height}`);
     }
   };
 
@@ -1409,6 +1409,7 @@ function createVideoCard(video, adminMode) {
 
   preview.src = video.previewImage || createVideoPreviewFallback(video.title, video.categoryColor);
   preview.alt = `Превью ${video.title}`;
+  applyCardAspectRatioFromImage(card, preview, "--video-ratio");
 
   categoryBadge.textContent = video.categoryName;
 
